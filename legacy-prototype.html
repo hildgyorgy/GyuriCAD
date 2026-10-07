@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dinamikus LOD Fal - Ablak Részletezettség</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #1a1a1a;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      user-select: none;
+    }
+
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+      cursor: crosshair;
+    }
+
+    #ui-overlay {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(30, 30, 30, 0.85);
+      backdrop-filter: blur(8px);
+      color: #e0e0e0;
+      padding: 16px 20px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.1);
+      pointer-events: none;
+      max-width: 340px;
+    }
+
+    h1 {
+      font-size: 16px;
+      margin: 0 0 8px 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #4facfe;
+    }
+
+    p {
+      font-size: 12px;
+      margin: 4px 0;
+      color: #aaa;
+      line-height: 1.4;
+    }
+
+    .lod-badge {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 11px;
+      background: #333;
+      color: #fff;
+    }
+
+    #lod-1 { border-left: 3px solid #888; }
+    #lod-2 { border-left: 3px solid #ff9800; }
+    #lod-3 { border-left: 3px solid #4caf50; }
+  </style>
+</head>
+<body>
+
+  <div id="canvas-container">
+    <canvas id="architect-canvas"></canvas>
+  </div>
+
+  <div id="ui-overlay">
+    <h1>LOD Ablak Részletezés</h1>
+    <p><b>Egérhúzás:</b> Téglalap ház rajzolása</p>
+    <p><b>Dupla klikk a falra:</b> Ablak elhelyezése (120 cm)</p>
+    <p><b>Görgő:</b> Zoomolás (Dinamikus LOD váltás)</p>
+    <p><b>Középső gomb / Shift+Klikk:</b> Pan</p>
+    
+    <div id="lod-indicator" class="lod-badge">LOD 1: Koncepció</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('architect-canvas');
+    const ctx = canvas.getContext('2d');
+    const lodIndicator = document.getElementById('lod-indicator');
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      draw();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    let zoom = 1.0;
+    let panX = window.innerWidth / 2;
+    let panY = window.innerHeight / 2;
+
+    let buildings = [];
+    let windows = []; // [{ buildingIndex, side: 'N'|'E'|'S'|'W', offset: px, width: 120 }]
+
+    let isDrawing = false;
+    let dragStart = null;
+    let dragCurrent = null;
+
+    let isPanning = false;
+    let startPan = { x: 0, y: 0 };
+
+    const LAYERS = [
+      { name: 'Belső vakolat', thickness: 1.5, color: '#d7ccc8' },
+      { name: 'Vázkerámia', thickness: 30, color: '#e64a19' },
+      { name: 'Ragasztó', thickness: 1.0, color: '#b0bec5' },
+      { name: 'Hőszigetelés', thickness: 10, color: '#fbc02d' },
+      { name: 'Színvakolat', thickness: 0.5, color: '#eceff1' }
+    ];
+
+    function getLODLevel(z) {
+      if (z < 0.8) return 1;
+      if (z < 2.5) return 2;
+      return 3;
+    }
+
+    function worldToScreen(wx, wy) {
+      return { x: wx * zoom + panX, y: wy * zoom + panY };
+    }
+
+    function screenToWorld(sx, sy) {
+      return { x: (sx - panX) / zoom, y: (sy - panY) / zoom };
+    }
+
+    // --- ESEMÉNYEK ---
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+        isPanning = true;
+        startPan = { x: e.clientX - panX, y: e.clientY - panY };
+        return;
+      }
+
+      if (e.button === 0) {
+        isDrawing = true;
+        dragStart = screenToWorld(e.clientX, e.clientY);
+        dragCurrent = dragStart;
+      }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      const worldPos = screenToWorld(e.clientX, e.clientY);
+
+      if (isPanning) {
+        panX = e.clientX - startPan.x;
+        panY = e.clientY - startPan.y;
+        draw();
+        return;
+      }
+
+      if (isDrawing) {
+        dragCurrent = worldPos;
+        draw();
+      }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 1 || e.shiftKey) isPanning = false;
+
+      if (e.button === 0 && isDrawing) {
+        isDrawing = false;
+        if (Math.abs(dragCurrent.x - dragStart.x) > 40 && Math.abs(dragCurrent.y - dragStart.y) > 40) {
+          const newBuilding = {
+            x1: Math.min(dragStart.x, dragCurrent.x),
+            y1: Math.min(dragStart.y, dragCurrent.y),
+            x2: Math.max(dragStart.x, dragCurrent.x),
+            y2: Math.max(dragStart.y, dragCurrent.y)
+          };
+          buildings.push(newBuilding);
+        }
+        dragStart = null;
+        dragCurrent = null;
+        draw();
+      }
+    });
+
+    // Dupla klikk -> Ablak lehelyezése a legközelebbi falra
+    canvas.addEventListener('dblclick', (e) => {
+      const p = screenToWorld(e.clientX, e.clientY);
+      const windowWidth = 120; // 120 cm széles ablak
+
+      buildings.forEach((b, bIdx) => {
+        // Ellenőrizzük mind a 4 oldalt (Észak, Kelet, Dél, Nyugat)
+        const margin = 20;
+        if (p.x >= b.x1 && p.x <= b.x2 && Math.abs(p.y - b.y1) < margin) {
+          windows.push({ buildingIndex: bIdx, side: 'N', center: p.x, width: windowWidth });
+        } else if (p.x >= b.x1 && p.x <= b.x2 && Math.abs(p.y - b.y2) < margin) {
+          windows.push({ buildingIndex: bIdx, side: 'S', center: p.x, width: windowWidth });
+        } else if (p.y >= b.y1 && p.y <= b.y2 && Math.abs(p.x - b.x1) < margin) {
+          windows.push({ buildingIndex: bIdx, side: 'W', center: p.y, width: windowWidth });
+        } else if (p.y >= b.y1 && p.y <= b.y2 && Math.abs(p.x - b.x2) < margin) {
+          windows.push({ buildingIndex: bIdx, side: 'E', center: p.y, width: windowWidth });
+        }
+      });
+      draw();
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const zoomFactor = 1.15;
+      const worldBefore = screenToWorld(e.clientX, e.clientY);
+
+      if (e.deltaY < 0) zoom *= zoomFactor;
+      else zoom /= zoomFactor;
+
+      zoom = Math.max(0.1, Math.min(zoom, 15.0));
+      const worldAfter = screenToWorld(e.clientX, e.clientY);
+
+      panX += (worldAfter.x - worldBefore.x) * zoom;
+      panY += (worldAfter.y - worldBefore.y) * zoom;
+
+      draw();
+    }, { passive: false });
+
+    // --- ABLAKOK RAJZOLÁSA LOD SZERINT ---
+
+    function drawWindowsForBuilding(b, bIdx, lod) {
+      const buildingWindows = windows.filter(w => w.buildingIndex === bIdx);
+
+      buildingWindows.forEach(w => {
+        // Meghatározzuk az ablak koordinátáit és orientációját a falon
+        let isHorizontal = (w.side === 'N' || w.side === 'S');
+        let wallY = (w.side === 'N') ? b.y1 : (w.side === 'S') ? b.y2 : 0;
+        let wallX = (w.side === 'W') ? b.x1 : (w.side === 'E') ? b.x2 : 0;
+
+        let totalWallThick = 43; // Teljes falszerkezet vastagsága
+        let innerOffset = -21.5;
+        let outerOffset = 21.5;
+
+        if (isHorizontal) {
+          let xStart = w.center - w.width / 2;
+          let xEnd = w.center + w.width / 2;
+          let yIn = wallY + innerOffset;
+          let yOut = wallY + outerOffset;
+
+          // FALÁTTÖRÉS (Ablaknyílás kimaszkolása/letisztítása)
+          let sInStart = worldToScreen(xStart, yIn);
+          let sOutEnd = worldToScreen(xEnd, yOut);
+          ctx.fillStyle = '#1e1e1e'; // Háttérszínnel eltüntetjük a falat
+          ctx.fillRect(
+            Math.min(sInStart.x, sOutEnd.x),
+            Math.min(sInStart.y, sOutEnd.y),
+            Math.abs(sOutEnd.x - sInStart.x),
+            Math.abs(sOutEnd.y - sInStart.y)
+          );
+
+          // LOD 1: Sima nyílásvágás
+          if (lod === 1) return;
+
+          // LOD 2: Nyílás + Dupla üvegezés vonal
+          if (lod === 2) {
+            let sG1 = worldToScreen(xStart, wallY - 2);
+            let sG2 = worldToScreen(xEnd, wallY - 2);
+            let sG3 = worldToScreen(xStart, wallY + 2);
+            let sG4 = worldToScreen(xEnd, wallY + 2);
+
+            ctx.strokeStyle = '#81d4fa';
+            ctx.lineWidth = Math.max(1, 1.5 * zoom);
+            ctx.beginPath();
+            ctx.moveTo(sG1.x, sG1.y); ctx.lineTo(sG2.x, sG2.y);
+            ctx.moveTo(sG3.x, sG3.y); ctx.lineTo(sG4.x, sG4.y);
+            ctx.stroke();
+            return;
+          }
+
+          // LOD 3: Részletes szerkezet (Tokráforduló szigetelés, Párkány, Könyöklő, Tok, Szárny)
+          if (lod === 3) {
+            let isOutNorth = (w.side === 'N');
+            let yExt = isOutNorth ? yOut : yIn; // Külső sík
+            let yInt = isOutNorth ? yIn : yOut; // Belső sík
+
+            // 1. Tokráforduló hőszigetelés (Káva szigetelés, 2.5 cm befordulás mindkét oldalon)
+            ctx.fillStyle = '#fbc02d';
+            ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+            ctx.lineWidth = 0.5 * zoom;
+
+            let sInsL1 = worldToScreen(xStart, yExt);
+            let sInsL2 = worldToScreen(xStart + 2.5, yExt - (isOutNorth ? 12 : -12));
+            ctx.fillRect(Math.min(sInsL1.x, sInsL2.x), Math.min(sInsL1.y, sInsL2.y), Math.abs(sInsL2.x - sInsL1.x), Math.abs(sInsL2.y - sInsL1.y));
+
+            let sInsR1 = worldToScreen(xEnd - 2.5, yExt);
+            let sInsR2 = worldToScreen(xEnd, yExt - (isOutNorth ? 12 : -12));
+            ctx.fillRect(Math.min(sInsR1.x, sInsR2.x), Math.min(sInsR1.y, sInsR2.y), Math.abs(sInsR2.x - sInsR1.x), Math.abs(sInsR2.y - sInsR1.y));
+
+            // 2. Külső Bádogpárkány
+            let sPark1 = worldToScreen(xStart - 2, yExt + (isOutNorth ? -3 : 3));
+            let sPark2 = worldToScreen(xEnd + 2, yExt);
+            ctx.fillStyle = '#b0bec5';
+            ctx.fillRect(Math.min(sPark1.x, sPark2.x), Math.min(sPark1.y, sPark2.y), Math.abs(sPark2.x - sPark1.x), Math.abs(sPark2.y - sPark1.y));
+
+            // 3. Belső Könyöklő (Fából / kőből)
+            let sKony1 = worldToScreen(xStart - 3, yInt);
+            let sKony2 = worldToScreen(xEnd + 3, yInt + (isOutNorth ? 4 : -4));
+            ctx.fillStyle = '#d7ccc8';
+            ctx.fillRect(Math.min(sKony1.x, sKony2.x), Math.min(sKony1.y, sKony2.y), Math.abs(sKony2.x - sKony1.x), Math.abs(sKony2.y - sKony1.y));
+
+            // 4. Ablaktok Profilok (Bal és Jobb oldali műanyag/fa tok)
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = '#333';
+            let frameThick = 7; // 7 cm-es tok
+            let frameDepth = 8; // 8 cm mély
+
+            let yFrameStart = wallY - 4;
+            let sFrameL1 = worldToScreen(xStart + 2.5, yFrameStart);
+            let sFrameL2 = worldToScreen(xStart + 2.5 + frameThick, yFrameStart + frameDepth);
+            ctx.fillRect(Math.min(sFrameL1.x, sFrameL2.x), Math.min(sFrameL1.y, sFrameL2.y), Math.abs(sFrameL2.x - sFrameL1.x), frameDepth * zoom);
+            ctx.strokeRect(Math.min(sFrameL1.x, sFrameL2.x), Math.min(sFrameL1.y, sFrameL2.y), Math.abs(sFrameL2.x - sFrameL1.x), frameDepth * zoom);
+
+            let sFrameR1 = worldToScreen(xEnd - 2.5 - frameThick, yFrameStart);
+            let sFrameR2 = worldToScreen(xEnd - 2.5, yFrameStart + frameDepth);
+            ctx.fillRect(Math.min(sFrameR1.x, sFrameR2.x), Math.min(sFrameR1.y, sFrameR2.y), Math.abs(sFrameR2.x - sFrameR1.x), frameDepth * zoom);
+            ctx.strokeRect(Math.min(sFrameR1.x, sFrameR2.x), Math.min(sFrameR1.y, sFrameR2.y), Math.abs(sFrameR2.x - sFrameR1.x), frameDepth * zoom);
+
+            // 5. Dupla Üvegezés (Kék színezéssel)
+            let sGl1 = worldToScreen(xStart + 2.5 + frameThick, yFrameStart + 3);
+            let sGl2 = worldToScreen(xEnd - 2.5 - frameThick, yFrameStart + 5);
+            ctx.fillStyle = 'rgba(129, 212, 250, 0.7)';
+            ctx.fillRect(Math.min(sGl1.x, sGl2.x), Math.min(sGl1.y, sGl2.y), Math.abs(sGl2.x - sGl1.x), 2 * zoom);
+          }
+        } else {
+          // FÜGGŐLEGES FALAK ABLAKAI (Nyugati és Keleti oldal)
+          let yStart = w.center - w.width / 2;
+          let yEnd = w.center + w.width / 2;
+          let xIn = wallX + innerOffset;
+          let xOut = wallX + outerOffset;
+
+          let sInStart = worldToScreen(xIn, yStart);
+          let sOutEnd = worldToScreen(xOut, yEnd);
+          ctx.fillStyle = '#1e1e1e';
+          ctx.fillRect(
+            Math.min(sInStart.x, sOutEnd.x),
+            Math.min(sInStart.y, sOutEnd.y),
+            Math.abs(sOutEnd.x - sInStart.x),
+            Math.abs(sOutEnd.y - sInStart.y)
+          );
+
+          if (lod === 1) return;
+
+          if (lod === 2) {
+            let sG1 = worldToScreen(wallX - 2, yStart);
+            let sG2 = worldToScreen(wallX - 2, yEnd);
+            let sG3 = worldToScreen(wallX + 2, yStart);
+            let sG4 = worldToScreen(wallX + 2, yEnd);
+
+            ctx.strokeStyle = '#81d4fa';
+            ctx.lineWidth = Math.max(1, 1.5 * zoom);
+            ctx.beginPath();
+            ctx.moveTo(sG1.x, sG1.y); ctx.lineTo(sG2.x, sG2.y);
+            ctx.moveTo(sG3.x, sG3.y); ctx.lineTo(sG4.x, sG4.y);
+            ctx.stroke();
+            return;
+          }
+
+          if (lod === 3) {
+            // Függőleges LOD 3 részletezés
+            let sGl1 = worldToScreen(wallX - 1, yStart + 10);
+            let sGl2 = worldToScreen(wallX + 1, yEnd - 10);
+            ctx.fillStyle = 'rgba(129, 212, 250, 0.8)';
+            ctx.fillRect(Math.min(sGl1.x, sGl2.x), Math.min(sGl1.y, sGl2.y), 2 * zoom, Math.abs(sGl2.y - sGl1.y));
+            
+            // Tokok fent és lent
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = '#333';
+            let sF1 = worldToScreen(wallX - 4, yStart + 2.5);
+            ctx.fillRect(sF1.x, sF1.y, 8 * zoom, 7 * zoom);
+            ctx.strokeRect(sF1.x, sF1.y, 8 * zoom, 7 * zoom);
+
+            let sF2 = worldToScreen(wallX - 4, yEnd - 9.5);
+            ctx.fillRect(sF2.x, sF2.y, 8 * zoom, 7 * zoom);
+            ctx.strokeRect(sF2.x, sF2.y, 8 * zoom, 7 * zoom);
+          }
+        }
+      });
+    }
+
+    // --- A ÉPÜLET-RÉTEGEK RAJZOLÁSA ---
+
+    function drawBuilding(b, bIdx, lod) {
+      let activeLayers = [];
+
+      if (lod === 1) {
+        activeLayers = [{ offset: -20, thick: 40, color: '#424242' }];
+      } else if (lod === 2) {
+        activeLayers = [
+          { offset: -21.5, thick: 31.5, color: '#d84315' },
+          { offset: 10, thick: 11.5, color: '#fbc02d' }
+        ];
+      } else {
+        let currentOff = -21.5;
+        activeLayers = LAYERS.map(l => {
+          const item = { offset: currentOff, thick: l.thickness, color: l.color };
+          currentOff += l.thickness;
+          return item;
+        });
+      }
+
+      activeLayers.forEach(layer => {
+        const off1 = layer.offset;
+        const off2 = layer.offset + layer.thick;
+
+        const outer = { x1: b.x1 - off2, y1: b.y1 - off2, x2: b.x2 + off2, y2: b.y2 + off2 };
+        const inner = { x1: b.x1 - off1, y1: b.y1 - off1, x2: b.x2 + off1, y2: b.y2 + off1 };
+
+        const sOut1 = worldToScreen(outer.x1, outer.y1);
+        const sOut2 = worldToScreen(outer.x2, outer.y2);
+        const sIn1 = worldToScreen(inner.x1, inner.y1);
+        const sIn2 = worldToScreen(inner.x2, inner.y2);
+
+        ctx.fillStyle = layer.color;
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+        ctx.lineWidth = Math.max(0.5, 0.5 * zoom);
+
+        // 4 gérvágott fal
+        ctx.beginPath(); ctx.moveTo(sOut1.x, sOut1.y); ctx.lineTo(sOut2.x, sOut1.y); ctx.lineTo(sIn2.x, sIn1.y); ctx.lineTo(sIn1.x, sIn1.y); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(sOut2.x, sOut1.y); ctx.lineTo(sOut2.x, sOut2.y); ctx.lineTo(sIn2.x, sIn2.y); ctx.lineTo(sIn2.x, sIn1.y); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(sOut2.x, sOut2.y); ctx.lineTo(sOut1.x, sOut2.y); ctx.lineTo(sIn1.x, sIn2.y); ctx.lineTo(sIn2.x, sIn2.y); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(sOut1.x, sOut2.y); ctx.lineTo(sOut1.x, sOut1.y); ctx.lineTo(sIn1.x, sIn1.y); ctx.lineTo(sIn1.x, sIn2.y); ctx.closePath(); ctx.fill(); ctx.stroke();
+      });
+
+      // Rányomjuk az ablakáttöréseket és a nyílászáró elemeket
+      drawWindowsForBuilding(b, bIdx, lod);
+    }
+
+    // --- FŐ RAJZIKLUS ---
+
+    function draw() {
+      ctx.fillStyle = '#1e1e1e';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const lod = getLODLevel(zoom);
+
+      if (lod === 1) {
+        lodIndicator.innerText = `LOD 1: Nyílásvágás (Zoom: ${zoom.toFixed(2)}x)`;
+        lodIndicator.id = 'lod-1';
+      } else if (lod === 2) {
+        lodIndicator.innerText = `LOD 2: Dupla Üvegezés (Zoom: ${zoom.toFixed(2)}x)`;
+        lodIndicator.id = 'lod-2';
+      } else {
+        lodIndicator.innerText = `LOD 3: Tok, Ráfordulás, Párkány (Zoom: ${zoom.toFixed(2)}x)`;
+        lodIndicator.id = 'lod-3';
+      }
+
+      drawGrid();
+
+      buildings.forEach((b, idx) => drawBuilding(b, idx, lod));
+
+      if (isDrawing && dragStart && dragCurrent) {
+        const tempBuilding = {
+          x1: Math.min(dragStart.x, dragCurrent.x),
+          y1: Math.min(dragStart.y, dragCurrent.y),
+          x2: Math.max(dragStart.x, dragCurrent.x),
+          y2: Math.max(dragStart.y, dragCurrent.y)
+        };
+
+        ctx.save();
+        ctx.globalAlpha = 0.6;
+        drawBuilding(tempBuilding, -1, lod);
+        ctx.restore();
+      }
+    }
+
+    function drawGrid() {
+      const gridSizeWorld = 100;
+      const gridSizeScreen = gridSizeWorld * zoom;
+      if (gridSizeScreen < 8) return;
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = 1;
+
+      const startX = panX % gridSizeScreen;
+      const startY = panY % gridSizeScreen;
+
+      ctx.beginPath();
+      for (let x = startX; x < canvas.width; x += gridSizeScreen) {
+        ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
+      }
+      for (let y = startY; y < canvas.height; y += gridSizeScreen) {
+        ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
+      }
+      ctx.stroke();
+    }
+
+    resizeCanvas();
+  </script>
+</body>
+</html>

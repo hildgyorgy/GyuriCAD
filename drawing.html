@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GyuriCAD papírtér-kísérlet: a szándékmodellből közvetlenül generált vektoros alaprajz.">
+  <title>GyuriCAD — papírtér és rajzgyártás</title>
+  <link rel="stylesheet" href="./drawing.css">
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <h1>GyuriCAD</h1>
+        <span>kísérlet 03</span>
+      </div>
+      <nav class="experiment-nav" aria-label="Kísérletek">
+        <a href="./index.html"><b>01</b> Ház</a>
+        <a href="./sweep.html"><b>02</b> Profil + útvonal</a>
+        <a class="active" href="./drawing.html" aria-current="page"><b>03</b> Papírtér</a>
+      </nav>
+    </header>
+
+    <main class="drawing-main">
+      <aside>
+        <p class="eyebrow">Rajz mint lekérdezés</p>
+        <h2>Az igazságból alaprajz</h2>
+        <p class="intro">Ez a lap nem képernyőkép. A modell pillanatnyi állapotából felépített, léptékhelyes SVG: ugyanaz az igazság kap papírra való grafikát.</p>
+
+        <section class="paper-card">
+          <span>A3 fekvő papírtér</span>
+          <strong data-scene-stats>Vektoros rajz készül…</strong>
+          <p>A vonalvastagságok milliméterben élnek, ezért PDF-ben és nyomtatva is rajzi vonalak maradnak.</p>
+        </section>
+
+        <section class="panel-section settings-grid">
+          <h3>Rajzi lekérdezés</h3>
+          <label>Lépték
+            <select name="scale">
+              <option value="50">M 1:50</option>
+              <option value="100">M 1:100</option>
+            </select>
+          </label>
+          <label>Részletezettség
+            <select name="detail">
+              <option value="system">Szerkezet</option>
+              <option value="resolved">Rétegrend</option>
+            </select>
+          </label>
+          <label class="check-control"><input name="dimensions" type="checkbox" checked>Méretezés megjelenítése</label>
+        </section>
+
+        <section class="panel-section">
+          <h3>Ugyanaz a szándékmodell</h3>
+          <label class="control">Belső szélesség <output data-width-value></output><input name="drawingWidth" type="range" min="480" max="1000" step="10"></label>
+          <label class="control">Belső mélység <output data-depth-value></output><input name="drawingDepth" type="range" min="360" max="800" step="10"></label>
+          <label class="control">Ablakszélesség <output data-window-value></output><input name="drawingWindow" type="range" min="80" max="260" step="5"></label>
+        </section>
+
+        <section class="panel-section export-actions">
+          <h3>Kimenet</h3>
+          <button data-download-svg>SVG letöltése</button>
+          <button class="secondary" data-print>Nyomtatás / PDF</button>
+          <p>A böngésző nyomtatási ablakában a „Mentés PDF-ként” vektoros A3 lapot készít.</p>
+        </section>
+      </aside>
+
+      <section class="paper-workspace" aria-label="A3 papírtér">
+        <div class="paper" data-paper></div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./drawing-app.js"></script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GyuriCAD profil + útvonal kísérlet: geometriai receptből generált 3D objektum.">
+  <title>GyuriCAD — profil + útvonal</title>
+  <link rel="stylesheet" href="./sweep.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <h1>GyuriCAD</h1>
+        <span>kísérlet 02</span>
+      </div>
+      <nav class="experiment-nav" aria-label="Kísérletek">
+        <a href="./index.html"><b>01</b> Ház</a>
+        <a class="active" href="./sweep.html" aria-current="page"><b>02</b> Profil + útvonal</a>
+        <a href="./drawing.html"><b>03</b> Papírtér</a>
+      </nav>
+    </header>
+
+    <main class="sweep-main">
+      <aside>
+        <p class="eyebrow">Geometriai recept</p>
+        <h2>Profil + útvonal = söpört elem</h2>
+        <p class="intro">A 3D háló csak pillanatnyi megjelenítés. Az eltárolt igazság a szerkeszthető keresztmetszet, az útvonal és a hozzájuk kapcsolt jelentés.</p>
+
+        <section class="truth-card">
+          <span class="truth-status" data-semantic-status>Még nincs építészeti jelentése</span>
+          <strong data-semantic-label>Ismeretlen söpört elem</strong>
+          <p>A geometria ugyanaz marad akkor is, amikor később építészeti szerepet kap.</p>
+          <button data-classify>Értelmezd ereszcsatornaként</button>
+          <button class="secondary" data-unclassify hidden>Vissza ismeretlen formára</button>
+        </section>
+
+        <section class="panel-section">
+          <h3>Útvonal tulajdonsága</h3>
+          <label class="control">
+            Teljes emelkedés
+            <output data-rise-value>0 cm</output>
+            <input name="pathRise" type="range" min="-60" max="60" value="0" step="2">
+          </label>
+          <label class="control">
+            Tartóvas kiosztás
+            <output data-spacing-value>90 cm</output>
+            <input name="supportSpacing" type="range" min="45" max="140" value="90" step="5">
+          </label>
+        </section>
+
+        <section class="panel-section legend">
+          <h3>Próbáld ki</h3>
+          <p><b>Profil:</b> húzd a fehér pontokat.</p>
+          <p><b>Útvonal:</b> mozgasd a számozott töréspontokat.</p>
+          <p><b>3D:</b> forgasd és közelítsd a generált felületet.</p>
+        </section>
+
+        <details class="recipe-panel">
+          <summary>Az eltárolt igazság</summary>
+          <pre data-recipe></pre>
+        </details>
+      </aside>
+
+      <section class="sweep-workspace">
+        <div class="editor-column">
+          <article class="viewport">
+            <div class="view-label">
+              <small>1. bemenet</small>
+              <strong>Keresztmetszeti profil</strong>
+              <span>Nyitott, vékony lemezprofil centiméterben.</span>
+            </div>
+            <canvas id="profile-canvas"></canvas>
+          </article>
+
+          <article class="viewport">
+            <div class="view-label">
+              <small>2. bemenet</small>
+              <strong>Alaprajzi útvonal</strong>
+              <span>A profil ezen a törött vonalon fut végig.</span>
+            </div>
+            <canvas id="path-canvas"></canvas>
+          </article>
+        </div>
+
+        <article class="viewport model-viewport">
+          <div class="view-label">
+            <small>3D szemantikus zoom</small>
+            <strong data-sweep-detail>Forma</strong>
+            <span data-sweep-detail-description>A profil az útvonal mentén felületté válik.</span>
+          </div>
+          <div id="sweep-3d"></div>
+          <p class="hint">Görgő: Szándék → Forma → Szerkezet → Beépítés</p>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./sweep-app.js"></script>
+</body>
+</html>

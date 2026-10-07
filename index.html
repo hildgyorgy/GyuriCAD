@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="GyuriCAD szemantikus részletezési kísérlet: egyetlen modell, 2D és 3D reprezentáció.">
+  <title>GyuriCAD — szemantikus zoom kísérlet</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.180.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.180.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand">
+        <h1>GyuriCAD</h1>
+        <span>kísérlet 01</span>
+      </div>
+      <div class="header-side">
+        <div class="thesis">A modell nem kész rajzokat tárol. A figyelem, a lépték és a rögzített döntések alapján rajzolja meg önmagát.</div>
+        <nav class="experiment-nav" aria-label="Kísérletek">
+          <a class="active" href="./index.html" aria-current="page"><b>01</b> Ház</a>
+          <a href="./sweep.html"><b>02</b> Profil + útvonal</a>
+          <a href="./drawing.html"><b>03</b> Papírtér</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <aside>
+        <p class="eyebrow">Egyetlen igazságforrás</p>
+        <h2>Négy fal, egy ablak, két nézet</h2>
+        <p class="intro">A 2D és a 3D nem egymás másolata: mindkettő ugyanazt a hiányos szándékmodellt oldja fel a saját nézőpontjához.</p>
+
+        <section class="resolution-card">
+          <span class="resolution-state" data-resolution-status data-state="suggested">Javasolt feloldás</span>
+          <p>Forrás: <span data-resolution-source>deterministic masonry rule v0.1</span></p>
+          <div class="actions">
+            <button data-accept>Rögzítem</button>
+            <button class="secondary" data-reset>Vissza javaslatra</button>
+          </div>
+        </section>
+
+        <section class="panel-section">
+          <h3>Szándékmodell</h3>
+          <label class="control">Belső szélesség <output data-width-value></output><input name="width" type="range" min="480" max="1000" step="10"></label>
+          <label class="control">Belső mélység <output data-depth-value></output><input name="depth" type="range" min="360" max="800" step="10"></label>
+          <label class="control">Ablakszélesség <output data-window-width-value></output><input name="windowWidth" type="range" min="80" max="260" step="5"></label>
+          <label class="control">Ablak helye <output data-window-position-value></output><input name="windowPosition" type="range" min="20" max="80" step="1"></label>
+        </section>
+
+        <section class="panel-section">
+          <h3>Aktuális feloldás</h3>
+          <ul class="layer-list" data-layer-list></ul>
+        </section>
+
+        <section class="panel-section junction-panel" data-junction-panel hidden>
+          <h3>Javasolt csomóponti szabály</h3>
+          <ul class="junction-list" data-junction-list></ul>
+        </section>
+      </aside>
+
+      <section class="workspace">
+        <article class="viewport">
+          <div class="view-label" data-plan-badge>
+            <small>2D alaprajz</small>
+            <strong>Szerkezet</strong>
+            <span>A teherhordó mag és a termikus burok különválik.</span>
+          </div>
+          <canvas id="plan-canvas"></canvas>
+          <p class="hint">Görgő: szemantikus zoom · Húzás: mozgatás</p>
+        </article>
+
+        <article class="viewport">
+          <div class="view-label" data-model-badge>
+            <small>3D modell</small>
+            <strong>Szerkezet</strong>
+            <span>A teherhordó mag és a termikus burok különválik.</span>
+          </div>
+          <div id="model-view"></div>
+          <p class="hint">Görgő: közelítés · Húzás: forgatás · Jobb gomb: mozgatás</p>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
