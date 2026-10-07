@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GyuriCAD — falgráf</title>
+  <link rel="stylesheet" href="./graph.css">
+  <script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.180.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.180.0/examples/jsm/"}}</script>
+</head>
+<body>
+<header><div class="brand"><h1>GyuriCAD</h1><span>kísérlet 04</span></div><nav class="experiment-nav" aria-label="Kísérletek"><a href="./index.html"><b>01</b> Ház</a><a href="./sweep.html"><b>02</b> Profil + útvonal</a><a href="./drawing.html"><b>03</b> Papírtér</a><a class="active" href="./graph.html" aria-current="page"><b>04</b> Falgráf</a></nav></header>
+<main><aside><p class="eyebrow">Egy gráf, három lekérdezés</p><h2>Szabad alaprajz</h2><p class="intro">Húzd a sarokpontokat, vagy kattints egy falszakaszra. Az alaprajz, a 3D tömeg és a tervlap ugyanabból a határgráfból épül újra.</p><div class="panel"><h3>Kijelölt fal</h3><strong id="selected-wall">—</strong><p id="wall-length">—</p><button id="assign-window">Ablak áthelyezése ide</button></div><div class="panel"><h3>Ablak</h3><label>Szélesség <output id="window-value"></output><input id="window-width" type="range" min="80" max="240" step="5"></label><label>Hely a falon <output id="position-value"></output><input id="window-position" type="range" min="20" max="80" step="1"></label></div><div class="panel"><button id="reset" class="secondary">Alapállapot visszaállítása</button><p class="small">A változások ebben a böngészőben megmaradnak. A 3D nézethez internet kell.</p></div></aside><section class="views"><article><div class="caption"><strong>2D · szerkesztés</strong><span>Sarokpontok húzása, fal kijelölése</span></div><canvas id="graph-canvas"></canvas></article><article><div class="caption"><strong>3D · tömeg</strong><span>Az ablak valódi nyílás a falban</span></div><div id="graph-3d"></div></article><article class="paper-article"><div class="caption"><strong>A3 · M 1:50</strong><span>Vektoros tervlap ugyanebből a gráfból</span></div><div class="paper" id="graph-paper"></div><div class="paper-actions"><button id="download">SVG letöltése</button><button id="print" class="secondary">Nyomtatás / PDF</button></div></article></section></main>
+<script type="module" src="./graph-app.js"></script>
+</body></html>

@@ -28,6 +28,7 @@
           <a class="active" href="./index.html" aria-current="page"><b>01</b> Ház</a>
           <a href="./sweep.html"><b>02</b> Profil + útvonal</a>
           <a href="./drawing.html"><b>03</b> Papírtér</a>
+        <a href="./graph.html"><b>04</b> Falgráf</a>
         </nav>
       </div>
     </header>
@@ -35,8 +36,8 @@
     <main>
       <aside>
         <p class="eyebrow">Egyetlen igazságforrás</p>
-        <h2>Négy fal, egy ablak, két nézet</h2>
-        <p class="intro">A 2D és a 3D nem egymás másolata: mindkettő ugyanazt a hiányos szándékmodellt oldja fel a saját nézőpontjához.</p>
+        <h2>Szerkeszthető falgráf, két nézet</h2>
+        <p class="intro">Húzd a sarokpontokat a 2D nézetben. A réteges 2D és 3D ugyanabból a falgráfból épül újra.</p>
 
         <section class="resolution-card">
           <span class="resolution-state" data-resolution-status data-state="suggested">Javasolt feloldás</span>
@@ -49,8 +50,12 @@
 
         <section class="panel-section">
           <h3>Szándékmodell</h3>
-          <label class="control">Belső szélesség <output data-width-value></output><input name="width" type="range" min="480" max="1000" step="10"></label>
-          <label class="control">Belső mélység <output data-depth-value></output><input name="depth" type="range" min="360" max="800" step="10"></label>
+          <div class="actions tool-actions"><button data-tool="select" aria-pressed="true">Kijelölés</button><button data-tool="wall" class="secondary" aria-pressed="false">Fal rajzolása</button></div>
+          <p class="intro" data-drawing-status>Kattints egy falra, majd helyezd át rá az ablakot.</p>
+          <p class="intro">Felismert helyiségek: <strong data-room-count>1</strong></p>
+          <p class="intro">Kijelölt fal: <strong data-selected-wall></strong> · <span data-wall-length></span></p>
+          <p class="intro">Ablak fala: <strong data-opening-wall></strong></p>
+          <div class="actions"><button data-delete-wall class="secondary" hidden>Belső fal törlése</button><button data-assign-window>Ablak ide</button><button class="secondary" data-reset-graph>Alaprajz visszaállítása</button></div>
           <label class="control">Ablakszélesség <output data-window-width-value></output><input name="windowWidth" type="range" min="80" max="260" step="5"></label>
           <label class="control">Ablak helye <output data-window-position-value></output><input name="windowPosition" type="range" min="20" max="80" step="1"></label>
         </section>
@@ -74,7 +79,7 @@
             <span>A teherhordó mag és a termikus burok különválik.</span>
           </div>
           <canvas id="plan-canvas"></canvas>
-          <p class="hint">Görgő: szemantikus zoom · Húzás: mozgatás</p>
+          <p class="hint">Görgő: szemantikus zoom · Sarokpont húzása: szerkesztés · Falrajzolás: két kattintás</p>
         </article>
 
         <article class="viewport">

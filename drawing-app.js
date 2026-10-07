@@ -16,6 +16,7 @@ const escapeXml = value => String(value)
 
 function renderElement(element) {
   const style = escapeXml(element.style || '');
+  if (element.type === 'polygon') return `<polygon class="${style}" points="${element.points.map(p => `${p.x},${p.y}`).join(' ')}"/>`;
   if (element.type === 'rect') {
     return `<rect class="${style}" x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}"/>`;
   }
@@ -73,6 +74,8 @@ function sceneToSvg(scene) {
         .cut-finish { fill:#f5f3ed; stroke:#303937; stroke-width:.18; }
         .cut-secondary { fill:url(#secondary); stroke:#303937; stroke-width:.22; }
         .room-boundary { fill:none; stroke:#7b8481; stroke-width:.13; }
+        .dimension-line { stroke:#9ba39f; stroke-width:.12; }
+        .dimension-label { fill:#4f5956; font:2.5px Arial,sans-serif; }
         .window { stroke:#306876; stroke-width:.25; fill:none; }
         .dimension { stroke:#2a3331; stroke-width:.18; fill:none; }
         .dimension text { stroke:none; fill:#1f2927; font:2.5px Arial, sans-serif; }
@@ -117,16 +120,6 @@ scaleSelect.addEventListener('change', render);
 detailSelect.addEventListener('change', render);
 dimensionsInput.addEventListener('change', render);
 window.addEventListener('gyuricad:model-changed', render);
-
-wireRange('drawingWidth', document.querySelector('[data-width-value]'),
-  () => project.dimensions.interiorWidth,
-  value => updateProject({ dimensions: { interiorWidth: value } }));
-wireRange('drawingDepth', document.querySelector('[data-depth-value]'),
-  () => project.dimensions.interiorDepth,
-  value => updateProject({ dimensions: { interiorDepth: value } }));
-wireRange('drawingWindow', document.querySelector('[data-window-value]'),
-  () => project.openings[0].width,
-  value => updateProject({ opening: { width: value } }));
 
 document.querySelector('[data-download-svg]').addEventListener('click', () => {
   const blob = new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n${currentSvg}`], { type: 'image/svg+xml' });

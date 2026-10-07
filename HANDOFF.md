@@ -159,3 +159,27 @@ git diff --stat
 ```
 
 Másik gépen a folytatáshoz a commitot fel is kell pusholni, majd ott pull/clone után a fenti helyi webszerverrel indítható a projekt.
+
+## 04 — Szerkeszthető falgráf (`graph.html`)
+
+A negyedik kísérlet egyetlen, zárt határgráfból építi a szerkeszthető 2D alaprajzot, az egyszerű Three.js 3D tömeget és az A3-as SVG tervlapot. A csomópontok felülnézetben húzhatók, a falak kattintással kijelölhetők; a kijelölt falra ablak rendelhető. Az ablak helye és szélessége állítható. Az állapot böngészőn belül `localStorage`-ban megmarad, így frissítés után is visszatöltődik. A visszaállító gomb újra létrehozza a kezdő alakzatot.
+
+Fő fájlok: `graph-model.js` (igazságmodell és geometriai lekérdezések), `graph-app.js` (szerkesztés és három reprezentáció), `graph.html`, `graph.css`.
+
+A falgráf jelenleg egyetlen külső kontúr, nincs belső fal, több helyiség vagy általános tértopológia. A falak középvonalon, egyszerű téglatestekből keletkeznek; csomóponti metszés és rétegprioritás még nincs. Az ablak legfeljebb egy falszakaszon szerepel. A tervlap vektoros, de automatikus méretlánc és ütközésvizsgálat még nincs. A 04-es kísérlet szándékosan saját modellt használ, így a korábbi három oldal változatlanul vizsgálható.
+
+## Integráció az 01-es Házba
+
+A 04-es falgráf-kísérlet után a gráf az 01-es Ház közös modelljébe is bekerült. Az `index.html` vásznán a sarokpontok mozgathatók, a falak kijelölhetők, és az ablak egy kiválasztott falra helyezhető. A réteges 2D nézet, a szemantikus zoomot használó 3D nézet és a `drawing.html` tervlap a `project.graph` modellt használja. A rétegek alaprajzi és 3D sarokcsatlakozása számított miterpontokból áll. A modell böngészőben tárolódik, és másik megnyitott fülön is frissül.
+
+A 04-es oldal külön kutatási prototípus maradt; saját állapotot használ. Az 01-es Ház és a 03-as Papírtér osztoznak a közös modellen. A 3D rétegek egyszerű hasábok, a csomóponti beépítés szemléltető. Az aktuális gráf zárt külső kontúr; önmetszés, belső fal, több helyiség és komplex csomóponti prioritás még nincs kezelve. A papírlap méretfeliratai egyszerű falhosszak, nem szabványos méretláncok.
+
+## Szabad belső falrajzolás
+
+Az 01-es Házban a **Fal rajzolása** mód két kattintással belső falat hoz létre. A pontok meglévő csomópontokhoz és falszakaszokhoz illeszkednek; falszakaszra illesztéskor a szakasz kettéválik. A rajzolás előnézetet és hosszjelzést használ, az `Esc` megszakítja. Az új belső fal 15 cm vastag, és nem kap külső hőszigetelést. Kijelölés után törölhető. A helyiségfelismerés a síkbeli gráf pozitív területű lapjait számítja, és a 2D nézet, a 3D nézet, valamint az SVG lap frissül.
+
+Jelenlegi korlát: a szabad rajzolás belső falakra vonatkozik; a külső kontúr új falszakasszal történő bővítése még nincs kidolgozva. A rendszer az önmetsző új falat elutasítja, de nincs teljes építészeti csomóponti és ajtólogika. A helyiségek neve és funkciója egyelőre nem tárolt adat.
+
+## Belső falak csatlakozásai
+
+A belső falak alaprajzi teste most közös csomópontszámítást használ a 2D vásznon, a 3D hasábokon és az SVG tervlapon. Külső falnál a belső falsíkig vágja a falvéget; két belső fal sarkánál tompa, derékszögű kapcsolatot számít; T és többágú csomópontnál a szög szerinti szomszédos faloldalak metszéspontjait keresi. Ferde csatlakozásnál a két falszélt külön metszi. A korábban rajzolt válaszfal a sarok külső éléig fut, a későbbi fal ehhez csatlakozik; így a 45 fokos lecsapás eltűnik. A falmagasság továbbra is egységes, és ez geometriai demonstráció, nem teljes szerkezeti csomóponti szabályrendszer.

@@ -32,3 +32,15 @@ A 3D nézet négy szemantikus zoomállapotot használ: Szándék (csak az útvon
 A `drawing.html` ugyanabból a `model.js` szándékmodellből készít A3-as, léptékhelyes vektoros alaprajzot. A papírtér M 1:50 és M 1:100 lépték, szerkezeti vagy teljes rétegrendi feloldás, valamint méretezés között váltható. A rajz SVG-ként közvetlenül exportálható, vagy a böngésző nyomtatási párbeszédablakából vektoros PDF-ként menthető — Revit és Archicad közbeiktatása nélkül.
 
 Az `index.html`, a `sweep.html` és a `drawing.html` fejlécében közös kísérletválasztó navigáció található, így az indexből minden prototípus elérhető.
+
+## Kísérlet 04: szerkeszthető falgráf
+
+A `graph.html` oldalon egy zárt, több sarokpontból álló alaprajz szerkeszthető. A sarokpontok húzása azonnal újraépíti a 2D nézetet, az egyszerű 3D tömeget és az A3-as vektoros tervlapot. Falszakasz kijelölése után az ablak áthelyezhető arra a falra. A böngésző helyben megőrzi az állapotot; az **Alapállapot visszaállítása** gomb törli a módosított geometriát.
+
+## Falgráf az 01-es szerkesztőben
+
+Az `index.html` most a szerkeszthető falgráfot használja közös modellként. Sarokpontokat lehet húzni, falszakaszt kijelölni, és az ablakot egy másik falra áthelyezni. A 2D és 3D részletezettség zoomra változik; a `drawing.html` ugyanebből a böngészőben tárolt gráfból készít réteges A3-as SVG rajzot. A 04-es oldal önálló korábbi kísérlet maradt.
+
+## Szabad falrajzolás
+
+Az 01-es szerkesztőben válaszd a **Fal rajzolása** módot, majd kattints a kezdő- és végpontra. Meglévő falra kattintva a fal kettéválik. Az új belső fal nem kap homlokzati hőszigetelést; a felismert helyiségek területe a nézeteken és az SVG rajzon is megjelenik. `Esc` megszakítja a folyamatban lévő rajzolást. Kijelölt belső fal törölhető.

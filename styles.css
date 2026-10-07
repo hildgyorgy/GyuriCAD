@@ -91,3 +91,5 @@ button.secondary { background: transparent; color: var(--ink); border: 1px solid
   aside { height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
   .workspace { height: 900px; }
 }
+
+.tool-actions{margin:12px 0}.tool-actions button[aria-pressed="true"]{background:var(--accent);color:white;border-color:var(--accent)}

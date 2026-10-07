@@ -1,4 +1,5 @@
-import { project, updateProject } from './model.js';
+import { project, updateProject, resetGraph } from './model.js';
+import { wallGeometry, recognizeRooms, removeInteriorWall } from './graph-model.js';
 import { createPlanView } from './view2d.js';
 import { createModelView } from './view3d.js';
 
@@ -56,31 +57,63 @@ function wireRange(name, valueElement, getter, setter, suffix = ' cm') {
   });
 }
 
-createPlanView(document.querySelector('#plan-canvas'), project, assembly => {
-  updateBadge(planBadge, assembly);
-  renderResolutionState(assembly);
-  renderLayers(assembly);
-});
-
+let selectedWall = project.graph.opening.wallId;
+const selectedEl = document.querySelector('[data-selected-wall]');
+const wallLengthEl = document.querySelector('[data-wall-length]');
+const openingWallEl = document.querySelector('[data-opening-wall]');
+const widthInput = document.querySelector('[name="windowWidth"]');
+const positionInput = document.querySelector('[name="windowPosition"]');
+function syncControls() {
+  const wall = project.graph.walls.find(item => item.id === selectedWall) || project.graph.walls[0];
+  selectedWall = wall.id;
+  selectedEl.textContent = wall.id;
+  wallLengthEl.textContent = `${(wallGeometry(project.graph, wall).length / 100).toFixed(2)} m`;
+  openingWallEl.textContent = project.graph.opening.wallId;
+  document.querySelector('[data-room-count]').textContent = recognizeRooms(project.graph).length;
+  document.querySelector('[data-delete-wall]').hidden = wall.role !== 'interior';
+  document.querySelector('[data-assign-window]').disabled = wall.role === 'interior';
+  widthInput.value = project.graph.opening.width;
+  positionInput.value = Math.round(project.graph.opening.center * 100);
+  document.querySelector('[data-window-width-value]').textContent = `${widthInput.value} cm`;
+  document.querySelector('[data-window-position-value]').textContent = `${positionInput.value}%`;
+}
+const planView = createPlanView(document.querySelector('#plan-canvas'), project, assembly => {
+  updateBadge(planBadge, assembly); renderResolutionState(assembly); renderLayers(assembly);
+}, wall => { selectedWall = wall.id; syncControls(); }, message => { document.querySelector('[data-drawing-status]').textContent = message; });
 createModelView(document.querySelector('#model-view'), project, assembly => {
   updateBadge(modelBadge, assembly);
   renderResolutionState(assembly);
   renderLayers(assembly);
 });
 
-wireRange('width', document.querySelector('[data-width-value]'),
-  () => project.dimensions.interiorWidth,
-  value => updateProject({ dimensions: { interiorWidth: value } }));
-wireRange('depth', document.querySelector('[data-depth-value]'),
-  () => project.dimensions.interiorDepth,
-  value => updateProject({ dimensions: { interiorDepth: value } }));
 wireRange('windowWidth', document.querySelector('[data-window-width-value]'),
-  () => project.openings[0].width,
-  value => updateProject({ opening: { width: value } }));
+  () => project.graph.opening.width, value => updateProject({ opening: { width: value } }));
 wireRange('windowPosition', document.querySelector('[data-window-position-value]'),
-  () => Math.round(project.openings[0].center * 100),
+  () => Math.round(project.graph.opening.center * 100),
   value => updateProject({ opening: { center: value / 100 } }), '%');
-
+document.querySelectorAll('[data-tool]').forEach(button => button.addEventListener('click', () => {
+  const tool = button.dataset.tool;
+  planView.setTool(tool);
+  document.querySelectorAll('[data-tool]').forEach(item => {
+    item.setAttribute('aria-pressed', String(item.dataset.tool === tool));
+    item.classList.toggle('secondary', item.dataset.tool !== tool);
+  });
+  document.querySelector('[data-drawing-status]').textContent = tool === 'wall'
+    ? 'Kattints a kezdőpontra, majd a végpontra. Meglévő falhoz illesztéskor a fal kettéválik.'
+    : 'Kattints egy falra, vagy húzd a sarokpontokat.';
+}));
+document.querySelector('[data-delete-wall]').addEventListener('click', () => {
+  const graph = structuredClone(project.graph);
+  if (removeInteriorWall(graph, selectedWall)) {
+    selectedWall = graph.opening.wallId;
+    updateProject({ graph }); planView.setSelected(selectedWall); syncControls();
+  }
+});
+document.querySelector('[data-assign-window]').addEventListener('click', () => {
+  updateProject({ opening: { wallId: selectedWall } }); syncControls();
+});
+document.querySelector('[data-reset-graph]').addEventListener('click', () => { resetGraph(); selectedWall = project.graph.opening.wallId; planView.setSelected(selectedWall); syncControls(); });
+window.addEventListener('gyuricad:model-changed', syncControls);
 acceptButton.addEventListener('click', () => {
   updateProject({ resolution: { status: 'confirmed', source: 'tervező által rögzítve' } });
 });

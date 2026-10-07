@@ -62,7 +62,7 @@ export function resolveAssembly(project, level) {
     source: project.resolution.source,
     totalThickness: resolvedThickness,
     layers: positionedLayers,
-    openings: project.openings.map(opening => ({ ...opening })),
+    openings: [{ ...project.graph.opening }],
     junction: level === 'junction' ? structuredClone(WINDOW_JUNCTION) : null,
   };
 }

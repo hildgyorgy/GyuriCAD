@@ -1,202 +1,95 @@
 import { detailFrom2DZoom, resolveAssembly } from './resolver.js';
+import { wallGeometry, openingRange, validGraph, wallLayerPolygon, interiorThickness, interiorWallPolygon, recognizeRooms, pointInExterior, splitWall, addInteriorWall, nextId } from './graph-model.js';
+import { updateProject } from './model.js';
 
-export function createPlanView(canvas, project, onDetailChange) {
+export function createPlanView(canvas, project, onDetailChange, onSelectionChange = () => {}, onDrawingStatus = () => {}) {
   const ctx = canvas.getContext('2d');
-  let zoom = 1;
-  let pan = { x: 0, y: 0 };
-  let dragging = false;
-  let lastPointer = null;
-  let currentDetail = null;
-
-  function resize() {
-    const rect = canvas.getBoundingClientRect();
-    const ratio = window.devicePixelRatio || 1;
-    canvas.width = Math.round(rect.width * ratio);
-    canvas.height = Math.round(rect.height * ratio);
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    draw();
-  }
-
-  function worldToScreen(x, y, width, height) {
-    const scale = 0.62 * zoom;
-    return { x: width / 2 + pan.x + x * scale, y: height / 2 + pan.y + y * scale };
-  }
-
-  function drawRing(layer, width, depth, opening, viewportWidth, viewportHeight) {
-    const inner = layer.innerOffset;
-    const outer = layer.outerOffset;
-    const outerLeft = -width / 2 - outer;
-    const outerRight = width / 2 + outer;
-    const outerTop = -depth / 2 - outer;
-    const outerBottom = depth / 2 + outer;
-    const innerLeft = -width / 2 - inner;
-    const innerRight = width / 2 + inner;
-    const innerTop = -depth / 2 - inner;
-    const innerBottom = depth / 2 + inner;
-    ctx.fillStyle = layer.color;
-
-    const fillWorldRect = (x1, y1, x2, y2) => {
-      const a = worldToScreen(x1, y1, viewportWidth, viewportHeight);
-      const b = worldToScreen(x2, y2, viewportWidth, viewportHeight);
-      ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
-    };
-
-    fillWorldRect(outerLeft, outerTop, outerRight, innerTop);
-    fillWorldRect(outerLeft, innerTop, innerLeft, innerBottom);
-    fillWorldRect(innerRight, innerTop, outerRight, innerBottom);
-
-    if (opening?.wall === 'south') {
-      const centerX = -width / 2 + opening.center * width;
-      const openingLeft = centerX - opening.width / 2;
-      const openingRight = centerX + opening.width / 2;
-      fillWorldRect(outerLeft, innerBottom, openingLeft, outerBottom);
-      fillWorldRect(openingRight, innerBottom, outerRight, outerBottom);
-    } else {
-      fillWorldRect(outerLeft, innerBottom, outerRight, outerBottom);
-    }
-  }
-
-  function drawWindow(opening, assembly, width, depth, viewportWidth, viewportHeight) {
-    const centerX = -width / 2 + opening.center * width;
-    const x1 = centerX - opening.width / 2;
-    const x2 = centerX + opening.width / 2;
-    const total = assembly.totalThickness;
-    const inside = worldToScreen(x1, depth / 2, viewportWidth, viewportHeight);
-    const outside = worldToScreen(x2, depth / 2 + total, viewportWidth, viewportHeight);
-
-    ctx.save();
-    ctx.strokeStyle = '#d9f1f2';
-    ctx.lineWidth = 1.2;
-    if (assembly.level.key === 'intent') {
-      ctx.strokeRect(inside.x, inside.y, outside.x - inside.x, outside.y - inside.y);
-    } else {
-      const y1 = worldToScreen(0, depth / 2 + total * 0.48, viewportWidth, viewportHeight).y;
-      const y2 = worldToScreen(0, depth / 2 + total * 0.56, viewportWidth, viewportHeight).y;
-      ctx.beginPath();
-      ctx.moveTo(inside.x, y1); ctx.lineTo(outside.x, y1);
-      ctx.moveTo(inside.x, y2); ctx.lineTo(outside.x, y2);
-      ctx.stroke();
-    }
-
-    if (['resolved', 'junction'].includes(assembly.level.key)) {
-      const frameDepth = 8 * 0.62 * zoom;
-      const frameWidth = 7 * 0.62 * zoom;
-      const frameAxis = assembly.junction?.frameAxisFromInterior ?? 24;
-      const frameY = worldToScreen(0, depth / 2 + frameAxis, viewportWidth, viewportHeight).y;
-      ctx.fillStyle = '#f4f2ec';
-      ctx.strokeStyle = '#28302f';
-      ctx.fillRect(inside.x, frameY, frameWidth, frameDepth);
-      ctx.strokeRect(inside.x, frameY, frameWidth, frameDepth);
-      ctx.fillRect(outside.x - frameWidth, frameY, frameWidth, frameDepth);
-      ctx.strokeRect(outside.x - frameWidth, frameY, frameWidth, frameDepth);
-
-      const sillY = worldToScreen(0, depth / 2 + total + 3, viewportWidth, viewportHeight).y;
-      ctx.strokeStyle = '#9aa9a8';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(inside.x - 6, sillY);
-      ctx.lineTo(outside.x + 6, sillY);
-      ctx.stroke();
-
-      if (assembly.level.key === 'junction') {
-        const rule = assembly.junction;
-        const scale = 0.62 * zoom;
-        const returnDepth = Math.max(3, rule.insulationReturn * scale);
-        const exteriorY = worldToScreen(0, depth / 2 + total, viewportWidth, viewportHeight).y;
-        const frameOuterY = frameY + frameDepth;
-
-        ctx.fillStyle = '#e5b94e';
-        ctx.fillRect(inside.x, Math.min(frameOuterY, exteriorY), returnDepth, Math.abs(exteriorY - frameOuterY));
-        ctx.fillRect(outside.x - returnDepth, Math.min(frameOuterY, exteriorY), returnDepth, Math.abs(exteriorY - frameOuterY));
-
-        const sealPositions = [frameY - 2, frameY + frameDepth / 2, frameY + frameDepth + 2];
-        rule.seals.forEach((seal, index) => {
-          ctx.strokeStyle = seal.color;
-          ctx.lineWidth = Math.max(1.4, 0.8 * zoom);
-          ctx.beginPath();
-          ctx.moveTo(inside.x - 4, sealPositions[index]);
-          ctx.lineTo(inside.x + frameWidth + 4, sealPositions[index]);
-          ctx.moveTo(outside.x - frameWidth - 4, sealPositions[index]);
-          ctx.lineTo(outside.x + 4, sealPositions[index]);
-          ctx.stroke();
-        });
-
-        ctx.fillStyle = '#28302f';
-        const anchorSize = Math.max(2, 1.2 * zoom);
-        ctx.fillRect(inside.x + frameWidth + 3, frameY + frameDepth / 2 - anchorSize / 2, anchorSize * 2.2, anchorSize);
-        ctx.fillRect(outside.x - frameWidth - 3 - anchorSize * 2.2, frameY + frameDepth / 2 - anchorSize / 2, anchorSize * 2.2, anchorSize);
-      }
-    }
-    ctx.restore();
-  }
-
-  function drawGrid(width, height) {
-    const spacing = Math.max(24, 62 * zoom);
-    ctx.strokeStyle = 'rgba(34, 47, 46, 0.07)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let x = (width / 2 + pan.x) % spacing; x < width; x += spacing) {
-      ctx.moveTo(x, 0); ctx.lineTo(x, height);
-    }
-    for (let y = (height / 2 + pan.y) % spacing; y < height; y += spacing) {
-      ctx.moveTo(0, y); ctx.lineTo(width, y);
-    }
-    ctx.stroke();
-  }
-
+  let zoom = 1, pan = { x: 0, y: 0 }, drag = null, last = null, selected = project.graph.opening.wallId;
+  let currentDetail = null, tool = 'select', pending = null, preview = null;
+  const view = () => canvas.getBoundingClientRect();
+  const scale = () => 0.57 * zoom;
+  const screen = (x,y) => { const r=view(); return { x:r.width/2+pan.x+x*scale(), y:r.height/2+pan.y+y*scale() }; };
+  const world = (x,y) => { const r=view(); return { x:(x-r.width/2-pan.x)/scale(), y:(y-r.height/2-pan.y)/scale() }; };
+  const distance = (p,a,b) => { const dx=b.x-a.x,dy=b.y-a.y;const t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy)));return Math.hypot(p.x-a.x-t*dx,p.y-a.y-t*dy); };
   function draw() {
-    const rect = canvas.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#f3f0e8';
-    ctx.fillRect(0, 0, width, height);
-    drawGrid(width, height);
-
-    const detail = detailFrom2DZoom(zoom);
-    const assembly = resolveAssembly(project, detail);
-    if (detail !== currentDetail) {
-      currentDetail = detail;
-      onDetailChange(assembly);
+    const r=view(),dpr=window.devicePixelRatio||1;
+    if(canvas.width!==Math.round(r.width*dpr)||canvas.height!==Math.round(r.height*dpr)){canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);}
+    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#f3f0e8';ctx.fillRect(0,0,r.width,r.height);
+    const detail=detailFrom2DZoom(zoom),assembly=resolveAssembly(project,detail);
+    if(detail!==currentDetail){currentDetail=detail;onDetailChange(assembly);}
+    const s=scale();ctx.strokeStyle='#dce0d9';ctx.lineWidth=1;const step=100*s;
+    for(let x=(r.width/2+pan.x)%step;x<r.width;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,r.height);ctx.stroke();}
+    for(let y=(r.height/2+pan.y)%step;y<r.height;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(r.width,y);ctx.stroke();}
+    const rooms=recognizeRooms(project.graph);
+    for(const room of rooms){
+      const center={x:room.points.reduce((a,p)=>a+p.x,0)/room.points.length,y:room.points.reduce((a,p)=>a+p.y,0)/room.points.length},p=screen(center.x,center.y);
+      ctx.fillStyle='#89918a';ctx.font='11px system-ui';ctx.textAlign='center';ctx.fillText(`${room.area.toFixed(1)} m²`,p.x,p.y);
     }
-
-    const { interiorWidth, interiorDepth } = project.dimensions;
-    const opening = project.openings[0];
-    assembly.layers.slice().reverse().forEach(layer => {
-      drawRing(layer, interiorWidth, interiorDepth, opening, width, height);
-    });
-    drawWindow(opening, assembly, interiorWidth, interiorDepth, width, height);
-
-    ctx.strokeStyle = 'rgba(31, 42, 41, 0.35)';
-    ctx.lineWidth = 1;
-    const roomA = worldToScreen(-interiorWidth / 2, -interiorDepth / 2, width, height);
-    const roomB = worldToScreen(interiorWidth / 2, interiorDepth / 2, width, height);
-    ctx.strokeRect(roomA.x, roomA.y, roomB.x - roomA.x, roomB.y - roomA.y);
+    for(const [wallIndex, wall] of project.graph.walls.entries()){
+      const g=wallGeometry(project.graph,wall),gap=openingRange(project.graph,wall),layers=assembly.layers;
+      const wallLayers=wall.role==='interior'?[{innerOffset:0,outerOffset:interiorThickness,color:'#82918c'}]:layers;
+      const wallTotal=wall.role==='interior'?interiorThickness:assembly.totalThickness;
+      for(const layer of wallLayers.slice().reverse()){
+        const inner=layer.innerOffset-wallTotal/2,outer=layer.outerOffset-wallTotal/2;
+        const polygon=(start,end)=>{if(end<=start)return;const footprint=wall.role==='interior'?interiorWallPolygon(project.graph,wall,assembly.totalThickness):wallLayerPolygon(project.graph,wallIndex,start,end,inner,outer);const points=footprint.map(p=>screen(p.x,p.y));ctx.fillStyle=layer.color;ctx.beginPath();ctx.moveTo(points[0].x,points[0].y);for(const p of points.slice(1))ctx.lineTo(p.x,p.y);ctx.closePath();ctx.fill();};
+        if(gap){polygon(0,gap.start);polygon(gap.end,g.length);}else polygon(0,g.length);
+      }
+      if(gap){const a=screen(g.a.x+g.ux*gap.start,g.a.y+g.uy*gap.start),b=screen(g.a.x+g.ux*gap.end,g.a.y+g.uy*gap.end);ctx.strokeStyle='#5c9dab';ctx.lineWidth=Math.max(2,2*s);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();if(detail==='junction'){ctx.strokeStyle='#d05d4d';ctx.lineWidth=2;for(const p of [a,b]){ctx.beginPath();ctx.arc(p.x,p.y,5,0,Math.PI*2);ctx.stroke();}}}
+      if(wall.id===selected&&tool==='select'){const a=screen(g.a.x,g.a.y),b=screen(g.b.x,g.b.y);ctx.strokeStyle='#c45e3d';ctx.lineWidth=2;ctx.setLineDash([7,5]);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.setLineDash([]);}
+    }
+    if(tool==='wall'&&pending){const a=screen(pending.x,pending.y),b=screen((preview||pending).x,(preview||pending).y);ctx.strokeStyle='#2f7880';ctx.lineWidth=2;ctx.setLineDash([8,5]);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.setLineDash([]);}
+    for(const node of project.graph.nodes){const p=screen(node.x,node.y);ctx.beginPath();ctx.arc(p.x,p.y,3.5,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,.45)';ctx.fill();ctx.strokeStyle='#c45e3d';ctx.lineWidth=1.5;ctx.stroke();}
   }
-
-  canvas.addEventListener('wheel', event => {
-    event.preventDefault();
-    zoom = Math.min(5.2, Math.max(0.48, zoom * (event.deltaY < 0 ? 1.12 : 0.89)));
-    draw();
-  }, { passive: false });
-
-  canvas.addEventListener('pointerdown', event => {
-    dragging = true;
-    lastPointer = { x: event.clientX, y: event.clientY };
-    canvas.setPointerCapture(event.pointerId);
+  const local=e=>{const r=view();return{x:e.clientX-r.left,y:e.clientY-r.top};};
+  function candidate(p,graph=project.graph){
+    const w=world(p.x,p.y),radius=16/scale();
+    const node=graph.nodes.find(n=>Math.hypot(n.x-w.x,n.y-w.y)<radius);
+    if(node)return{x:node.x,y:node.y,type:'node',id:node.id};
+    let best=null,limit=radius;
+    for(const wall of graph.walls){const g=wallGeometry(graph,wall),t=Math.max(0,Math.min(g.length,(w.x-g.a.x)*g.ux+(w.y-g.a.y)*g.uy));const q={x:g.a.x+g.ux*t,y:g.a.y+g.uy*t},d=Math.hypot(q.x-w.x,q.y-w.y);if(d<limit&&t>=80&&g.length-t>=80){best={...q,type:'wall',id:wall.id};limit=d;}}
+    if(best)return best;
+    const point={x:Math.round(w.x/5)*5,y:Math.round(w.y/5)*5,type:'free'};
+    return pointInExterior(graph,point)?point:null;
+  }
+  function materialize(graph,point){
+    if(point.type==='node')return point.id;
+    if(point.type==='wall'){
+      const wall=graph.walls.find(item=>item.id===point.id);
+      if(wall){const node=splitWall(graph,wall.id,point);if(node)return node.id;}
+      const nearest=graph.walls.find(item=>{const g=wallGeometry(graph,item);return distance(point,g.a,g.b)<5;});
+      if(nearest){const node=splitWall(graph,nearest.id,point);if(node)return node.id;}
+      return null;
+    }
+    const node={id:nextId(graph,'n'),x:point.x,y:point.y};graph.nodes.push(node);return node.id;
+  }
+  function drawClick(p){
+    const hit=candidate(p);if(!hit){onDrawingStatus('Csak az épület belsejében kezdhetsz vagy fejezhetsz be falat.');return;}
+    if(!pending){pending=hit;preview=hit;onDrawingStatus('Kezdőpont rögzítve. Kattints a fal végpontjára; Esc: megszakítás.');draw();return;}
+    const graph=structuredClone(project.graph),a=materialize(graph,pending),b=materialize(graph,hit);
+    if(!a||!b||!addInteriorWall(graph,a,b)){onDrawingStatus('A fal túl rövid, keresztezi a meglévő falat, vagy kilóg az épületből.');return;}
+    pending=null;preview=null;updateProject({graph});onDrawingStatus(`${recognizeRooms(graph).length} felismert helyiség · új belső fal elkészült.`);
+  }
+  canvas.addEventListener('pointerdown',e=>{
+    const p=local(e);
+    if(tool==='wall'){drawClick(p);return;}
+    const node=project.graph.nodes.find(n=>{const q=screen(n.x,n.y);return Math.hypot(p.x-q.x,p.y-q.y)<15;});
+    if(node){drag={type:'node',id:node.id};canvas.setPointerCapture(e.pointerId);return;}
+    let nearest=16;for(const wall of project.graph.walls){const g=wallGeometry(project.graph,wall),d=distance(p,screen(g.a.x,g.a.y),screen(g.b.x,g.b.y));if(d<nearest){nearest=d;selected=wall.id;onSelectionChange(wall);}}
+    drag={type:'pan'};last=p;canvas.setPointerCapture(e.pointerId);draw();
   });
-  canvas.addEventListener('pointermove', event => {
-    if (!dragging) return;
-    pan.x += event.clientX - lastPointer.x;
-    pan.y += event.clientY - lastPointer.y;
-    lastPointer = { x: event.clientX, y: event.clientY };
-    draw();
+  canvas.addEventListener('pointermove',e=>{
+    const p=local(e);
+    if(tool==='wall'){preview=candidate(p)||world(p.x,p.y);draw();return;}
+    if(!drag)return;
+    if(drag.type==='pan'){pan.x+=p.x-last.x;pan.y+=p.y-last.y;last=p;draw();return;}
+    const node=project.graph.nodes.find(n=>n.id===drag.id),old={x:node.x,y:node.y},w=world(p.x,p.y);
+    node.x=Math.round(w.x/5)*5;node.y=Math.round(w.y/5)*5;
+    if(!validGraph(project.graph)){Object.assign(node,old);return;}
+    window.dispatchEvent(new CustomEvent('gyuricad:model-changed'));localStorage.setItem('gyuricad:house-graph-v1',JSON.stringify(project.graph));
   });
-  canvas.addEventListener('pointerup', () => { dragging = false; });
-  canvas.addEventListener('pointercancel', () => { dragging = false; });
-
-  window.addEventListener('resize', resize);
-  window.addEventListener('gyuricad:model-changed', draw);
-  resize();
-  return { redraw: draw };
+  canvas.addEventListener('pointerup',()=>drag=null);canvas.addEventListener('pointercancel',()=>drag=null);
+  window.addEventListener('keydown',e=>{if(e.key==='Escape'&&pending){pending=null;preview=null;onDrawingStatus('Falrajzolás megszakítva.');draw();}});
+  canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.min(5.2,Math.max(.48,zoom*(e.deltaY<0?1.12:.89)));draw();},{passive:false});
+  window.addEventListener('resize',draw);window.addEventListener('gyuricad:model-changed',draw);onSelectionChange(project.graph.walls.find(w=>w.id===selected));draw();
+  return {redraw:draw,getSelectedWall:()=>selected,setTool(value){tool=value;pending=null;preview=null;canvas.style.cursor=value==='wall'?'crosshair':'default';draw();},setSelected(id){selected=id;draw();}};
 }
